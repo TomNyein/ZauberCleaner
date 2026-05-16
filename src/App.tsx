@@ -8,6 +8,8 @@ import ConfirmModal from './components/ConfirmModal';
 import DetailModal from './components/DetailModal';
 import AboutModal from './components/AboutModal';
 
+const COMMAND_ONLY = new Set(['pnpm-store', 'core-simulator-unavailable', 'docker-system']);
+
 export default function App() {
   const [diskInfo, setDiskInfo] = useState<DiskInfo>({ total: 0, free: 0 });
   const [items, setItems] = useState<CleanupItemState[]>([]);
@@ -84,6 +86,7 @@ export default function App() {
   const handleCleanCommand = useCallback(
     async (item: CleanupItemState) => {
       setConfirmItem(null);
+      setDetailView(null);
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, cleaning: true } : i)),
       );
@@ -203,7 +206,12 @@ export default function App() {
         <DetailModal
           item={detailView.item}
           details={detailView.details}
-          onConfirm={(paths) => handleCleanSelected(detailView.item, paths)}
+          selectable={!COMMAND_ONLY.has(detailView.item.id)}
+          onConfirm={(paths) =>
+            COMMAND_ONLY.has(detailView.item.id)
+              ? handleCleanCommand(detailView.item)
+              : handleCleanSelected(detailView.item, paths)
+          }
           onCancel={() => setDetailView(null)}
         />
       )}

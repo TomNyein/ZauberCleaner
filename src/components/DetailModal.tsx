@@ -7,6 +7,7 @@ type SortKey = 'size' | 'date' | 'name';
 interface DetailModalProps {
   item: CleanupItemState;
   details: CleanupDetail[] | null;
+  selectable?: boolean;
   onConfirm: (paths: string[]) => void;
   onCancel: () => void;
 }
@@ -22,7 +23,13 @@ function formatDate(ts: number): string {
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
-export default function DetailModal({ item, details, onConfirm, onCancel }: DetailModalProps) {
+export default function DetailModal({
+  item,
+  details,
+  selectable = true,
+  onConfirm,
+  onCancel,
+}: DetailModalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('size');
 
@@ -56,6 +63,7 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
   const allSelected = details !== null && selected.size === details.length;
 
   const toggleItem = (path: string) => {
+    if (!selectable) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
@@ -65,7 +73,7 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
   };
 
   const toggleAll = () => {
-    if (!details) return;
+    if (!details || !selectable) return;
     if (allSelected) setSelected(new Set());
     else setSelected(new Set(details.map((d) => d.path)));
   };
@@ -77,7 +85,11 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
           <div>
             <h2>{item.name}</h2>
             <span className="detail-subtitle">
-              {loading ? 'Loading folders…' : 'Select items to delete'}
+              {loading
+                ? 'Loading folders…'
+                : selectable
+                  ? 'Select items to delete'
+                  : 'Review contents before cleanup'}
             </span>
           </div>
           <div className="detail-total">{formatBytes(item.size ?? 0)}</div>
@@ -96,9 +108,11 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
                 </button>
               ))}
             </div>
-            <button className="sort-btn" onClick={toggleAll}>
-              {allSelected ? 'Deselect all' : 'Select all'}
-            </button>
+            {selectable && (
+              <button className="sort-btn" onClick={toggleAll}>
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+            )}
           </div>
         )}
 
@@ -110,12 +124,18 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
             </div>
           )}
           {sorted.map((d) => (
-            <label key={d.path} className="detail-item" title={d.path}>
-              <input
-                type="checkbox"
-                checked={selected.has(d.path)}
-                onChange={() => toggleItem(d.path)}
-              />
+            <label
+              key={d.path}
+              className={`detail-item ${selectable ? '' : 'detail-item-readonly'}`}
+              title={d.path}
+            >
+              {selectable && (
+                <input
+                  type="checkbox"
+                  checked={selected.has(d.path)}
+                  onChange={() => toggleItem(d.path)}
+                />
+              )}
               <span className="detail-name">{d.displayName}</span>
               <span className="detail-date">{formatDate(d.lastModified)}</span>
               <span className="detail-item-size">{formatBytes(d.size)}</span>
@@ -123,11 +143,19 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
           ))}
         </div>
 
+        {!selectable && !loading && (
+          <div className="detail-command-note">
+            Cleanup runs: <code>{item.deleteCommandDisplay}</code>
+          </div>
+        )}
+
         <div className="detail-footer">
           <span className="detail-selected-info">
             {loading
               ? ''
-              : `${selected.size} of ${details.length} selected (${formatBytes(selectedSize)})`}
+              : selectable
+                ? `${selected.size} of ${details!.length} selected (${formatBytes(selectedSize)})`
+                : `${details!.length} items`}
           </span>
           <div className="modal-actions">
             <button className="btn-cancel" onClick={onCancel}>
@@ -135,10 +163,10 @@ export default function DetailModal({ item, details, onConfirm, onCancel }: Deta
             </button>
             <button
               className="btn-delete"
-              disabled={loading || selected.size === 0}
+              disabled={loading || (selectable && selected.size === 0)}
               onClick={() => onConfirm(Array.from(selected))}
             >
-              Delete selected
+              {selectable ? 'Delete selected' : 'Run cleanup'}
             </button>
           </div>
         </div>

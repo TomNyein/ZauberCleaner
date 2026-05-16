@@ -376,6 +376,49 @@ export async function scanItemDetails(id: string): Promise<CleanupDetail[]> {
           return [];
         }
       }
+
+      case 'pnpm-store':
+        return listContents(path.join(HOME, 'Library', 'pnpm'));
+
+      case 'homebrew-cache': {
+        if (!(await cmdExists('brew'))) return [];
+        try {
+          const { stdout: cachePath } = await execAsync('brew --cache 2>/dev/null', { timeout: 10000 });
+          const trimmed = cachePath.trim();
+          if (!trimmed) return [];
+          return listContents(trimmed);
+        } catch {
+          return [];
+        }
+      }
+
+      case 'core-simulator-unavailable':
+        return listContents(
+          path.join(HOME, 'Library', 'Developer', 'CoreSimulator', 'Devices'),
+        );
+
+      case 'docker-system': {
+        if (!(await cmdExists('docker'))) return [];
+        try {
+          await execAsync('docker info 2>/dev/null', { timeout: 5000 });
+          const { stdout } = await execAsync(
+            `docker system df --format '{{.Type}}\t{{.Size}}\t{{.Reclaimable}}' 2>/dev/null`,
+            { timeout: 10000 },
+          );
+          return stdout.trim().split('\n').filter(Boolean).map((line) => {
+            const [type, size, reclaimable] = line.split('\t');
+            return {
+              path: type,
+              displayName: `${type} (${reclaimable} reclaimable)`,
+              size: parseHumanSize(size),
+              lastModified: 0,
+            };
+          });
+        } catch {
+          return [];
+        }
+      }
+
       default:
         return [];
     }
